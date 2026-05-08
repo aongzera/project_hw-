@@ -139,7 +139,25 @@ module camera_vga_top(
     // VGA Read Address Generator (with pixel doubling)
     // Maps 640x480 VGA coordinates to 320x240 frame buffer
     //=======================================================================
-    assign read_addr = (vga_y[9:1] * 320) + vga_x[9:1];
+    // assign read_addr = (vga_y[9:1] * 320) + vga_x[9:1]; No need if we will do the upscaling
+
+    wire [11:0] upscaled_pixel;
+
+    bilinear_upscaler_2x upscaler (
+        .clk(clk_25mhz),
+        .reset(reset),
+
+        .active(vga_active),
+        .vga_x(vga_x),
+        .vga_y(vga_y),
+
+        .upscale_enable(upscale_enable),
+
+        .read_addr(read_addr),
+        .read_data(read_data),
+
+        .pixel_out(upscaled_pixel)
+    );
     
     //=======================================================================
     // VGA Output (apply filters based on switches)

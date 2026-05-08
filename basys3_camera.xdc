@@ -95,6 +95,10 @@ set_property PACKAGE_PIN V16 [get_ports {filter_sel[1]}]
 set_property PACKAGE_PIN W16 [get_ports {filter_sel[2]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {filter_sel[*]}]
 
+# For the upscaling
+set_property PACKAGE_PIN W17 [get_ports upscale_enable]
+set_property IOSTANDARD LVCMOS33 [get_ports upscale_enable]
+
 ####################################################################################
 # Debug LEDs (LD0-LD3)
 ####################################################################################
