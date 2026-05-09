@@ -77,12 +77,36 @@ module camera_vga_top(
         .locked(clk_locked)
     );
     
+     //============================================================
+    // Camera reset sequencing
+    // Keep OV7670 reset low briefly after clock wizard locks.
+    //============================================================
+    reg [19:0] cam_reset_count;
+    reg        cam_reset_n;
+
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            cam_reset_count <= 20'd0;
+            cam_reset_n     <= 1'b0;
+        end else if (!clk_locked) begin
+            cam_reset_count <= 20'd0;
+            cam_reset_n     <= 1'b0;
+        end else if (cam_reset_count < 20'd1_000_000) begin
+            cam_reset_count <= cam_reset_count + 20'd1; // about 10 ms at 100 MHz
+            cam_reset_n     <= 1'b0;
+        end else begin
+            cam_reset_n <= 1'b1;
+        end
+    end
+
+    assign camera_reset = cam_reset_n;
+
     //=======================================================================
     // SCCB (I2C-like) Camera Configuration Module
     //=======================================================================
     ov7670_config camera_config (
         .clk(clk),
-        .reset(reset || !clk_locked),
+        .reset(reset || !clk_locked || !cam_reset_n),
         .sioc(camera_sioc),
         .siod(camera_siod),
         .config_done(config_done)
@@ -97,7 +121,6 @@ module camera_vga_top(
         .href(camera_href),
         .data_in(camera_data),
         .reset(reset || !config_done),
-        
         .frame_addr(write_addr),
         .frame_pixel(write_data),
         .frame_we(write_enable)
@@ -127,7 +150,6 @@ module camera_vga_top(
     vga_controller vga_ctrl (
         .clk(clk_25mhz),
         .reset(reset),
-        
         .hsync(vga_hsync),
         .vsync(vga_vsync),
         .active(vga_active),
@@ -139,8 +161,22 @@ module camera_vga_top(
     // VGA Read Address Generator (with pixel doubling)
     // Maps 640x480 VGA coordinates to 320x240 frame buffer
     //=======================================================================
-    assign read_addr = (vga_y[9:1] * 320) + vga_x[9:1];
-    
+    wire [8:0] fb_x = vga_x[9:1];
+    wire [8:0] fb_y = vga_y[9:1];
+    wire visible_now = (vga_x < 10'd640) && (vga_y < 10'd480);
+
+    assign read_addr = visible_now ? ((fb_y * 17'd320) + fb_x) : 17'd0;
+
+    // BRAM read is synchronous, so read_data belongs to the previous VGA pixel.
+    // Delay active by 1 clock to keep RGB gating aligned with read_data.
+    reg vga_active_d;
+    always @(posedge clk_25mhz or posedge reset) begin
+        if (reset) begin
+            vga_active_d <= 1'b0;
+        end else begin
+            vga_active_d <= vga_active;
+        end
+    end
     //=======================================================================
     // VGA Output (apply filters based on switches)
     //=======================================================================
@@ -157,4 +193,8 @@ module camera_vga_top(
     assign vga_green = vga_active ? filtered_pixel[7:4]  : 4'b0000;
     assign vga_blue  = vga_active ? filtered_pixel[3:0]  : 4'b0000;
 
+    assign led[0] = clk_locked;
+    assign led[1] = cam_reset_n;
+    assign led[2] = config_done;
+    assign led[3] = write_enable;
 endmodule
