@@ -57,14 +57,14 @@ module camera_vga_top(
     
     // Camera control - keep camera active
     assign camera_pwdn = 1'b0;   // Not in power down
-    assign camera_reset = 1'b1;  // Not in reset (active low, so 1 = normal)
+    //assign camera_reset = 1'b1;  // Not in reset (active low, so 1 = normal)
     assign camera_xclk = clk_24mhz;
     
-    // Debug: show configuration status
-    assign led[0] = config_done;
-    assign led[1] = camera_vsync;
-    assign led[2] = camera_href;
-    assign led[3] = write_enable;
+    // // Debug: show configuration status
+    // assign led[0] = config_done;
+    // assign led[1] = camera_vsync;
+    // assign led[2] = camera_href;
+    // assign led[3] = write_enable;
     
     //=======================================================================
     // Clock Generation Module
@@ -189,9 +189,25 @@ module camera_vga_top(
     );
     
     // Output RGB to VGA (only during active display region)
-    assign vga_red   = vga_active ? filtered_pixel[11:8] : 4'b0000;
-    assign vga_green = vga_active ? filtered_pixel[7:4]  : 4'b0000;
-    assign vga_blue  = vga_active ? filtered_pixel[3:0]  : 4'b0000;
+    assign vga_red   = vga_active_d ? filtered_pixel[11:8] : 4'b0000;
+    assign vga_green = vga_active_d ? filtered_pixel[7:4]  : 4'b0000;
+    assign vga_blue  = vga_active_d ? filtered_pixel[3:0]  : 4'b0000;
+
+    vga_display vga_display_inst (
+        .clk_25MHz   (clk_25mhz),
+        .reset       (reset),
+
+        // BRAM interface
+        .frame_addr  (read_addr),
+        .frame_pixel (filtered_pixel),
+
+        // Physical VGA pins
+        .hsync_out   (vga_hsync),
+        .vsync_out   (vga_vsync),
+        .vga_r       (vga_red),
+        .vga_g       (vga_green),
+        .vga_b       (vga_blue)
+    );
 
     assign led[0] = clk_locked;
     assign led[1] = cam_reset_n;
