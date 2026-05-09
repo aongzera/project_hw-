@@ -77,43 +77,40 @@ module tb_vga_controller();
         $display("  Display pixels: 0-639 (should be active)");
         $display("  Blanking: 640-799 (should be inactive)");
         
+        // ... โค้ดส่วนบนเหมือนเดิม ...
         // Monitor VSYNC timing
         $display("\n--- Monitoring Vertical Sync ---");
         @(negedge vsync);
         $display("Time %0t: VSYNC pulse started at line %0d", $time, y_pos);
         @(posedge vsync);
         $display("Time %0t: VSYNC pulse ended", $time);
-        
-        // Monitor complete frame
+
+        // Monitor complete frame (แก้ไขใหม่)
         $display("\n--- Monitoring Complete Frame ---");
         pixel_count = 0;
-        
-        // Count active pixels in one frame
-        fork
-            begin
-                // Wait for one complete frame
-                @(posedge vsync);
-                @(posedge vsync);
-            end
-            
-            begin
-                // Count active pixels
-                while(1) begin
-                    @(posedge clk);
-                    if (active) pixel_count = pixel_count + 1;
-                    if (vsync) break;
-                end
-            end
-        join
-        
+
+        // 1. รอให้เข้าสู่ช่วงเริ่มต้นของเฟรมถัดไป (รอจน VSYNC เป็น 0 อีกครั้ง)
+        @(negedge vsync); 
+
+        // 2. รอจนกว่า VSYNC Pulse จะจบ (กลับมาเป็น 1) เพื่อเริ่มโซนภาพ
+        while(!vsync) @(posedge clk); 
+
+        // 3. เริ่มนับ Pixel จนกว่าจะเจอ VSYNC Pulse ของเฟรมถัดไป
+        while(vsync) begin
+            @(posedge clk);
+        if (active) pixel_count = pixel_count + 1;
+        end
+        // พอ VSYNC กลายเป็น 0 (เข้าเฟรมใหม่) ลูปจะจบการทำงาน
+
         $display("Active pixels in frame: %0d", pixel_count);
         $display("Expected: 640 × 480 = 307200");
-        
+
         if (pixel_count == 307200) begin
             $display("✓ PASS: Correct number of active pixels");
         end else begin
             $display("✗ FAIL: Incorrect pixel count");
         end
+// ... โค้ดส่วนล่างเหมือนเดิม ...
         
         // Test pixel doubling addressing
         $display("\n--- Testing Pixel Doubling ---");
