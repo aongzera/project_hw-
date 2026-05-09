@@ -122,24 +122,47 @@ module camera_vga_top(
     );
     
     //=======================================================================
-    // VGA Controller
+    // VGA Controller Signals (Internal)
     //=======================================================================
+    wire w_vga_hsync;
+    wire w_vga_vsync;
+    wire w_vga_active;
+    wire [9:0] w_vga_x;
+    wire [9:0] w_vga_y;
+
     vga_controller vga_ctrl (
         .clk(clk_25mhz),
         .reset(reset),
         
-        .hsync(vga_hsync),
-        .vsync(vga_vsync),
-        .active(vga_active),
-        .x_pos(vga_x),
-        .y_pos(vga_y)
+        .hsync(w_vga_hsync),
+        .vsync(w_vga_vsync),
+        .active(w_vga_active),
+        .x_pos(w_vga_x),
+        .y_pos(w_vga_y)
     );
     
     //=======================================================================
     // VGA Read Address Generator (with pixel doubling)
-    // Maps 640x480 VGA coordinates to 320x240 frame buffer
+    // 320 = 256 + 64 -> (y * 256) + (y * 64) -> (y << 8) + (y << 6)
     //=======================================================================
-    assign read_addr = (vga_y[9:1] * 320) + vga_x[9:1];
+    wire [8:0] y_val = w_vga_y[9:1];
+    wire [8:0] x_val = w_vga_x[9:1];
+    assign read_addr = (y_val << 8) + (y_val << 6) + x_val;
+
+    //=======================================================================
+    // 2. ปรับปรุงเรื่อง BRAM Latency (หน่วงสัญญาณ Sync ให้รอข้อมูลภาพ 1 Clock)
+    //=======================================================================
+    reg r_vga_hsync, r_vga_vsync, r_vga_active;
+    
+    always @(posedge clk_25mhz) begin
+        r_vga_hsync  <= w_vga_hsync;
+        r_vga_vsync  <= w_vga_vsync;
+        r_vga_active <= w_vga_active;
+    end
+    
+    // ต่อออกพอร์ตของ Module จริงๆ
+    assign vga_hsync = r_vga_hsync;
+    assign vga_vsync = r_vga_vsync;
     
     //=======================================================================
     // VGA Output (apply filters based on switches)
@@ -152,9 +175,9 @@ module camera_vga_top(
         .pixel_out(filtered_pixel)
     );
     
-    // Output RGB to VGA (only during active display region)
-    assign vga_red   = vga_active ? filtered_pixel[11:8] : 4'b0000;
-    assign vga_green = vga_active ? filtered_pixel[7:4]  : 4'b0000;
-    assign vga_blue  = vga_active ? filtered_pixel[3:0]  : 4'b0000;
-
+    // ใช้สัญญาณ Active ที่ถูกหน่วงเวลาแล้วมาควบคุม Output
+    assign vga_red   = r_vga_active ? filtered_pixel[11:8] : 4'b0000;
+    assign vga_green = r_vga_active ? filtered_pixel[7:4]  : 4'b0000;
+    assign vga_blue  = r_vga_active ? filtered_pixel[3:0]  : 4'b0000;
+    
 endmodule
